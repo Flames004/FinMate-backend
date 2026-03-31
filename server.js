@@ -7,6 +7,7 @@ dotenv.config();
 
 const connectDB = require("./config/db");
 const userRoutes = require("./routes/userRoutes");
+const chatRoutes = require("./routes/chatRoutes");
 
 // Connect to Database
 connectDB();
@@ -21,6 +22,7 @@ app.use(cors());
 
 // Mount routes
 app.use("/api/users", userRoutes);
+app.use("/api/chat", chatRoutes);
 
 // Root response for health checks
 app.get("/", (req, res) => {
