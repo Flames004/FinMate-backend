@@ -25,7 +25,7 @@ const TransactionSchema = new mongoose.Schema({
 });
 
 const UserSchema = new mongoose.Schema({
-  phone: {
+  email: {
     type: String,
     required: true,
     unique: true,

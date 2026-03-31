@@ -4,6 +4,7 @@ const User = require("../models/User");
 const jwt = require("jsonwebtoken");
 const otpGenerator = require("otp-generator");
 const { protect } = require("../middleware/auth");
+const sendEmail = require("../utils/sendEmail");
 
 // Generate JWT
 const generateToken = (id) => {
@@ -12,14 +13,14 @@ const generateToken = (id) => {
   });
 };
 
-// @desc    Send OTP to phone
+// @desc    Send OTP to email
 // @route   POST /api/users/send-otp
 router.post("/send-otp", async (req, res) => {
   try {
-    const { phone } = req.body;
+    const { email } = req.body;
 
-    if (!phone) {
-      return res.status(400).json({ success: false, message: "Phone number is required" });
+    if (!email) {
+      return res.status(400).json({ success: false, message: "Email is required" });
     }
 
     // Generate 6 digit OTP
@@ -31,24 +32,36 @@ router.post("/send-otp", async (req, res) => {
 
     const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    let user = await User.findOne({ phone });
+    let user = await User.findOne({ email });
 
     if (!user) {
-      user = new User({ phone });
+      user = new User({ email });
     }
 
     user.otp = otp;
     user.otpExpires = otpExpires;
     await user.save();
 
-    // MOCK: Log OTP to console since we don't have SMS provider
-    console.log(`\n----------------------------`);
-    console.log(`📱 OTP FOR ${phone}: ${otp}`);
-    console.log(`----------------------------\n`);
+    const emailSent = await sendEmail({
+      email: email,
+      subject: "Your FinMate Verification Code",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #334155;">
+          <h2 style="color: #10b981;">Welcome to FinMate!</h2>
+          <p>Your verification code is:</p>
+          <h1 style="font-size: 36px; letter-spacing: 5px; color: #020617; background: #f1f5f9; padding: 20px; text-align: center; border-radius: 12px; margin: 20px 0;">${otp}</h1>
+          <p>This code will expire in 10 minutes. If you did not request this, please ignore it.</p>
+        </div>
+      `
+    });
+
+    if (!emailSent) {
+      return res.status(500).json({ success: false, message: "Failed to send email. Check server configuration." });
+    }
 
     res.status(200).json({ 
       success: true, 
-      message: "OTP sent successfully (Check server console)" 
+      message: "OTP sent to email successfully" 
     });
   } catch (error) {
     console.error(error);
@@ -60,13 +73,13 @@ router.post("/send-otp", async (req, res) => {
 // @route   POST /api/users/verify-otp
 router.post("/verify-otp", async (req, res) => {
   try {
-    const { phone, otp } = req.body;
+    const { email, otp } = req.body;
 
-    if (!phone || !otp) {
-      return res.status(400).json({ success: false, message: "Phone and OTP are required" });
+    if (!email || !otp) {
+      return res.status(400).json({ success: false, message: "Email and OTP are required" });
     }
 
-    const user = await User.findOne({ phone }).select("+otp +otpExpires");
+    const user = await User.findOne({ email }).select("+otp +otpExpires");
 
     if (!user || user.otp !== otp || user.otpExpires < Date.now()) {
       return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
